@@ -1,0 +1,8 @@
+[package]
+name = "cryptographic-addressing"
+version = "0.1.0"
+authors = ["Andrew Dirksen <andrew@dirksen.com>"]
+
+[dependencies]
+sslhash = "0.1.1"
+openssl = "0.10.2"
