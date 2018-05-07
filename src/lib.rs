@@ -1,15 +1,18 @@
 extern crate sslhash;
 extern crate openssl;
 
-use sslhash::AcceptorBuilder;
-use openssl::ssl::{SslStream, SslAcceptor, HandshakeError, SslMethod, SslConnector};
+use sslhash::{AcceptorBuilder, sha256};
+use openssl::ssl::{SslStream, SslAcceptor, SslMethod, SslConnector};
 use std::io;
 use std::io::{Write, Read};
 use std::string::String;
 use std::net::{TcpStream, TcpListener};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{SocketAddr};
 
 use std::collections::HashMap;
+
+const PUBLISH: u8 = 'p' as u8;
+const LOOKUP: u8 = 'l' as u8;
 
 struct Matchmaker {
     listener: CryptoListener,
@@ -37,11 +40,44 @@ impl Matchmaker {
         // read and parse as json
         let mut recieved = Vec::new();
         stream.read_to_end(&mut recieved).unwrap();
-        
+        if recieved.starts_with(&[PUBLISH]) {
+            self.publish(stream, address);
+        } else if  recieved.starts_with(&[LOOKUP]) {
+
+        }
+        // match action {
+        //     Some(Ok(PUBLISH)) => {},
+        //     Some(Ok(LOOKUP)) => {},
+        //     _ => {}
+        // }
+            
         // call either publish, or lookup
     }
 
-    fn publish(&self, stream: SslStream<TcpStream>) {}
+    fn publish(&self, stream: SslStream<TcpStream>, address: SocketAddr) {
+        // get public key from stream
+        let pkhash = hash_of(stream);
+        println!("{:?}", pkhash);
+        // get address from stream
+        // add both to self.addrs
+        assert!(false); // not done
+    }
+}
+
+fn hash_of(stream: SslStream<TcpStream>) -> String {
+    println!("attempting to get peer cert");
+    if let Some(cert) = stream.ssl().peer_certificate() {
+        println!("got peer cert");
+        if let Ok(pkey) = cert.public_key() {
+            println!("got pk");
+            if let Ok(pem) = pkey.public_key_to_pem() {
+                println!("got pem");
+                let hash = sha256(&pem);
+                return hash;
+            }
+        } 
+    }
+    return "todo".to_string();
 }
 
 struct CryptoListener {
@@ -67,7 +103,7 @@ impl CryptoListener {
         let connector = SslConnector::builder(SslMethod::tls()).unwrap().build();
         let tcp = TcpStream::connect(matchmaker_addr).unwrap();
         let mut socket = sslhash::connect(&connector, tcp, matchmaker_pub_hash).unwrap();
-        socket.write_all(b"Lettuce").unwrap();
+        socket.write_all(b"p").unwrap();
     }
     
     fn accept(&self) -> io::Result<(SslStream<TcpStream>, std::net::SocketAddr)> {
@@ -88,7 +124,6 @@ pub fn connect(hash: String) -> SslStream<TcpStream> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Write, Read};
     use CryptoListener;
     use Matchmaker;
     use connect;
